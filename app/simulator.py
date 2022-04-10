@@ -41,7 +41,9 @@ SIMULACION:
 
 '''
 
-LOW_RISK,MID_RISK,HIGH_RISK = 2, 1, 0
+LOW_RISK,MID_RISK,HIGH_RISK = 0, 1, 2
+
+TOTAL_RISK = 2
 
 FAV_PLACES = 5
 
@@ -59,8 +61,41 @@ def shared_time(a, b): # in minutes
 
 class Rule:
     def __init__(self, params):
-        for key, value in params:
-            setattr(self, key, value)
+        self.risk=params['contagionRisk']
+        self.durationValue=params['durationValue']
+        self.durationCmp=params['durationCmp']
+        self.m2Value=params['m2Value']
+        self.m2Cmp=params['m2Cmp']
+        self.openSpace=params['openSpace']
+        #self.n95Mandatory=params['n95Mandatory']
+        #self.vaccinated=params['vaccinated']
+        #self.vaccineReceived=params['vaccineReceived']
+        #self.vaccinatedDaysAgoMin=params['vaccinatedDaysAgoMin']
+        #self.illnessRecovered=params['illnessRecovered']
+        #self.illnessRecoveredDaysAgoMax=params['illnessRecoveredDaysAgoMax']
+        #for key, value in params:
+        #    setattr(self, key, value)
+
+    def apply(self, visit_a, visit_b, shared):
+        check = True
+        if self.durationValue != None:
+            if self.durationCmp == "<":
+                check &= shared <= self.durationValue
+            else:
+                check &= shared >= self.durationValue
+
+        if self.m2Value != None:
+            if self.m2Cmp == "<":
+                check &= visit_a.place.m2 <= self.m2Value
+            else:
+                check &= visit_a.place.m2 >= self.m2Value
+
+        if self.openSpace != None:
+            check &= visit_a.place.openSpace == self.openSpace
+
+        if check:
+            return self.risk
+		
 
 
 class Person:
@@ -75,7 +110,7 @@ class Person:
         self.risk = LOW_RISK
 
     def places_to_visit(self):
-        n_places_to_visit = random.randint(0, self.risk)
+        n_places_to_visit = random.randint(0, TOTAL_RISK - self.risk) # inverso al riesgo
         n_places = len(self.fav_places)
         places = []
         for _ in range(n_places_to_visit):
@@ -84,6 +119,13 @@ class Person:
             places.append(idx)
 
         return places
+
+    def update_risk(self, risk):
+        self.risk = risk
+        if risk == HIGH_RISK: # reduce mobility
+            print("REDUCED MOBILITY")
+            self.locked_down = True
+            self.locked_down_counter = LOCKDOWN_RESTRICTION
 
 
 class Place:
@@ -157,14 +199,20 @@ class Simulator:
         for visits_by_hour in visits.values():
             if len(visits_by_hour) > 1:
                 for visit_a, visit_b in itertools.combinations(visits_by_hour, 2):
-                    st = shared_time(visit_a, visit_b)
+                    shared = shared_time(visit_a, visit_b)
 
-                    if not st:
+                    if not shared:
                         continue
 
-                    print(f"OVERLAP ON {visit_a.place.id} at A:[{visit_a.timestamp.minute};{visit_a.timestamp.minute + visit_a.duration}] B:[{visit_b.timestamp.minute};{visit_b.timestamp.minute + visit_b.duration}] SHARED {st}")
+                    print(f"OVERLAP ON {visit_a.place.id} at A:[{visit_a.timestamp.minute};{visit_a.timestamp.minute + visit_a.duration}] B:[{visit_b.timestamp.minute};{visit_b.timestamp.minute + visit_b.duration}] SHARED {shared}")
 
-                    # apply rules
+                    risk = LOW_RISK
+                    for rule in rules:
+                        rule_applied = rule.apply(visit_a, visit_b, shared)
+                        risk = risk if not rule_applied else max(rule_applied, risk)
+
+                    visit_a.person.update_risk(risk)
+                    visit_b.person.update_risk(risk)
 
 
 
@@ -186,7 +234,7 @@ class Simulator:
             "low": pop_low
         }
 
-    def run(self, n_pop=10, n_places=5, t=10, rules_info=[], seed=123): #T is in days
+    def run(self, n_pop=100, n_places=5, t=10, rules_info=[], seed=123): #T is in days
         random.seed(seed)
         print("INIT SIMULATION")
         population = [Person() for p in range(n_pop)]
@@ -212,4 +260,23 @@ class Simulator:
 
 sim = Simulator()
 
-sim.run(rules_info=[])
+rules = [
+    {
+    "contagionRisk": 2,
+    "durationValue": 10,
+    "durationCmp": ">",
+    "m2Value": None,
+    "m2Cmp": None,
+    "openSpace": None
+    },
+    {
+    "contagionRisk": 1,
+    "m2Value": 10,
+    "m2Cmp": "<",
+    "durationValue": None,
+    "durationCmp": None,
+    "openSpace": None
+    },
+]
+
+print(sim.run(rules_info=rules))

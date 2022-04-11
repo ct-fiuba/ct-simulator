@@ -166,9 +166,12 @@ class Simulator:
         
     def _update_person(self, person, day, places, visits_of_day):
         if person.locked_down:
+            print("CANT MOVE")
             person.locked_down_counter -= 1
             if person.locked_down_counter == 0:
+                print("IM FREE")
                 person.locked_down = False
+                person.risk = LOW_RISK
             return
         
         visited_places = person.places_to_visit()
@@ -263,7 +266,7 @@ sim = Simulator()
 rules = [
     {
     "contagionRisk": 2,
-    "durationValue": 10,
+    "durationValue": 20,
     "durationCmp": ">",
     "m2Value": None,
     "m2Cmp": None,
@@ -271,7 +274,7 @@ rules = [
     },
     {
     "contagionRisk": 1,
-    "m2Value": 10,
+    "m2Value": 20,
     "m2Cmp": "<",
     "durationValue": None,
     "durationCmp": None,
@@ -279,4 +282,4 @@ rules = [
     },
 ]
 
-print(sim.run(rules_info=rules))
+print(sim.run(rules_info=rules, t=20, n_pop=200, n_places=100))

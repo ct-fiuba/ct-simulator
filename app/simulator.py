@@ -28,7 +28,7 @@ Bajo: visita 2/3 lugares por dia
 ASUMO:
 
 - En una pandemia el movimiento es reducido pero existe
-- Una persona va a por lo menos 5 lugares, (trabajo, supermercado, casa(nocuenta), y 3 comercios mas )
+- Una persona va a por lo menos 5 lugares, (trabajo, supermercado, casa(nocuenta), farmacia y 2 comercios mas )
 - Cada persona va a visitar esos 5 lugares ciclando por el T tiempo en el q transcurre la simulacion
 
 SIMULACION:
@@ -37,7 +37,8 @@ SIMULACION:
 - Creo Reglas pasadas por parametro
 - Asigno 5 lugares a cada persona para visitar durante la simulacion
 - Cada dia q pasa la persona va a 2/3 de los lugares para visitar, amenos q su mobilidad se vea reducida
-
+- Defino probabilidades de contagio segun los riesgos de la regla
+- Defino un tiempo de contagio que tiene un contagiado (por cuantos dias es contagioso)
 
 '''
 
@@ -49,9 +50,17 @@ FAV_PLACES = 5
 
 LOCKDOWN_RESTRICTION = 7 # days
 
+INFECTED_WINDOW = 5 # days
+
 DAY = 24
 
 HOUR = 60
+
+INFECTED_PROBABILITIES = {
+    LOW_RISK: 0.01,
+    MID_RISK: 0.1,
+    HIGH_RISK: 0.5
+}
 
 def shared_time(a, b): # in minutes
     range_a = range(a.timestamp.minute, a.timestamp.minute + a.duration)
@@ -77,6 +86,10 @@ class Rule:
         #    setattr(self, key, value)
 
     def apply(self, visit_a, visit_b, shared):
+        infected = visit_a.person.infected or visit_b.person.infected
+
+        if not infected: return
+
         check = True
         if self.durationValue != None:
             if self.durationCmp == "<":
@@ -104,6 +117,7 @@ class Person:
         self.recovered = False
 
         self.infected = False
+        self.infected_counter = 0
         self.locked_down = False
         self.locked_down_counter = 0
         self.fav_places = []
@@ -126,6 +140,13 @@ class Person:
             print("REDUCED MOBILITY")
             self.locked_down = True
             self.locked_down_counter = LOCKDOWN_RESTRICTION
+
+            
+        proba_infected = random.random()
+
+        if proba_infected < INFECTED_PROBABILITIES[self.risk]:
+            self.infected = True
+            self.infected_counter = INFECTED_WINDOW
 
 
 class Place:
@@ -172,6 +193,11 @@ class Simulator:
                 print("IM FREE")
                 person.locked_down = False
                 person.risk = LOW_RISK
+
+        if person.infected:
+            person.infected_counter -= 1
+            if person.infected_counter == 0:
+                person.infected = False
             return
         
         visited_places = person.places_to_visit()
@@ -217,13 +243,22 @@ class Simulator:
                     visit_a.person.update_risk(risk)
                     visit_b.person.update_risk(risk)
 
+    def _infect_population(self, population, init_infected):
+        for person in population:
+            proba = random.random()
+
+            if proba < init_infected:
+                person.infected = True
 
 
     def _gather_results(self, population):
         pop_low = 0
         pop_mid = 0
         pop_high = 0
+
+        pop_infected = 0
         for person in population:
+            if person.infected : pop_infected +=1
             if person.risk == LOW_RISK:
                 pop_low +=1
             elif person.risk == MID_RISK:
@@ -234,11 +269,12 @@ class Simulator:
         return {
             "high": pop_high,
             "mid": pop_mid,
-            "low": pop_low
+            "low": pop_low,
+            "infected": pop_infected
         }
 
-    def run(self, n_pop=100, n_places=5, t=10, rules_info=[], seed=123): #T is in days
-        random.seed(seed)
+    def run(self, n_pop=100, n_places=5, t=10, rules_info=[], seed=None, init_infected = 0.05): #T is in days
+        if seed: random.seed(seed)
         print("INIT SIMULATION")
         population = [Person() for p in range(n_pop)]
         print("INIT POPULATION")
@@ -248,6 +284,8 @@ class Simulator:
         print("INIT RULES")
         self._assign_places(len(places), population)
         print("ASSIGNED PLACES")
+
+        self._infect_population(population, init_infected)
         for i in range(t):
             print(f"DAY {i}")
             visits_of_day = {}
@@ -282,4 +320,53 @@ rules = [
     },
 ]
 
-print(sim.run(rules_info=rules, t=20, n_pop=200, n_places=100))
+restricted_rules = [
+    {
+    "contagionRisk": 2,
+    "durationValue": 1,
+    "durationCmp": ">",
+    "m2Value": None,
+    "m2Cmp": None,
+    "openSpace": None
+    },
+]
+
+free_rules = [
+    {
+    "contagionRisk": 0,
+    "durationValue": 1000,
+    "durationCmp": ">",
+    "m2Value": None,
+    "m2Cmp": None,
+    "openSpace": None
+    },
+]
+
+print(sim.run(rules_info=free_rules, t=300, n_pop=200, n_places=100))
+
+
+'''
+Visualizar:
+----------
+
+Pre simulacion:
+Distribuciones de los establecimientos
+Distribuciones de las personas
+
+Post simulacion:
+Avance de contagios en el tiempo
+Avance de riesgos en el tiempo
+
+nth:
+poner a los establecimientos en un lugar
+simular los puntitos moviendose y cambiando de colores
+
+
+
+Posibles mejoras a la simulacion:
+---------------------------------
+
+- no todos tienen 5 lugares fav
+- no todos los lugares tienen igual chance de ser visitados (hay lugares mas concurridos)
+- proba de contagio variable segun el dia de la enfermedad
+'''

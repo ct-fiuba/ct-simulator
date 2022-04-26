@@ -250,8 +250,7 @@ class Simulator:
             if proba < init_infected:
                 person.infected = True
 
-
-    def _gather_results(self, population):
+    def _daily_report(self, population, report, day):
         pop_low = 0
         pop_mid = 0
         pop_high = 0
@@ -266,12 +265,13 @@ class Simulator:
             else:
                 pop_high +=1
 
-        return {
+        return report.append({
+            "day": day,
             "high": pop_high,
             "mid": pop_mid,
             "low": pop_low,
             "infected": pop_infected
-        }
+        })
 
     def run(self, n_pop=100, n_places=5, t=10, rules_info=[], seed=None, init_infected = 0.05): #T is in days
         if seed: random.seed(seed)
@@ -286,6 +286,8 @@ class Simulator:
         print("ASSIGNED PLACES")
 
         self._infect_population(population, init_infected)
+
+        report = []
         for i in range(t):
             print(f"DAY {i}")
             visits_of_day = {}
@@ -293,56 +295,14 @@ class Simulator:
                 self._update_person(person, i, places, visits_of_day)
 
             self._apply_rules(visits_of_day, rules)
+            self._daily_report(population, report, i)
                 
-        return self._gather_results(population)
+        return report
 
 
 
 
-sim = Simulator()
 
-rules = [
-    {
-    "contagionRisk": 2,
-    "durationValue": 20,
-    "durationCmp": ">",
-    "m2Value": None,
-    "m2Cmp": None,
-    "openSpace": None
-    },
-    {
-    "contagionRisk": 1,
-    "m2Value": 20,
-    "m2Cmp": "<",
-    "durationValue": None,
-    "durationCmp": None,
-    "openSpace": None
-    },
-]
-
-restricted_rules = [
-    {
-    "contagionRisk": 2,
-    "durationValue": 1,
-    "durationCmp": ">",
-    "m2Value": None,
-    "m2Cmp": None,
-    "openSpace": None
-    },
-]
-
-free_rules = [
-    {
-    "contagionRisk": 0,
-    "durationValue": 1000,
-    "durationCmp": ">",
-    "m2Value": None,
-    "m2Cmp": None,
-    "openSpace": None
-    },
-]
-
-print(sim.run(rules_info=free_rules, t=300, n_pop=200, n_places=100))
 
 
 '''
@@ -369,4 +329,5 @@ Posibles mejoras a la simulacion:
 - no todos tienen 5 lugares fav
 - no todos los lugares tienen igual chance de ser visitados (hay lugares mas concurridos)
 - proba de contagio variable segun el dia de la enfermedad
+- usar https://scikit-mobility.github.io/scikit-mobility/reference/models.html#module-skmob.models.markov_diary_generator
 '''

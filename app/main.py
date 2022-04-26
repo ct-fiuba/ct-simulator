@@ -1,9 +1,9 @@
-from flask import Flask, request
-from flask_swagger_ui import get_swaggerui_blueprint
+from flask import Flask, request, jsonify
+#from flask_swagger_ui import get_swaggerui_blueprint
 
 from simulator import Simulator
 
-
+'''
 def setup_swaggerui(app):
     SWAGGER_URL = '/swagger'
     API_URL = '/static/swagger.yaml'
@@ -15,9 +15,54 @@ def setup_swaggerui(app):
         }
     )
     app.register_blueprint(SWAGGERUI_BLUEPRINT, url_prefix=SWAGGER_URL)
+'''
+
 
 app = Flask(__name__)
-setup_swaggerui(app)
+#setup_swaggerui(app)
+
+sim = Simulator()
+
+rules = [
+    {
+    "contagionRisk": 2,
+    "durationValue": 20,
+    "durationCmp": ">",
+    "m2Value": None,
+    "m2Cmp": None,
+    "openSpace": None
+    },
+    {
+    "contagionRisk": 1,
+    "m2Value": 20,
+    "m2Cmp": "<",
+    "durationValue": None,
+    "durationCmp": None,
+    "openSpace": None
+    },
+]
+
+restricted_rules = [
+    {
+    "contagionRisk": 2,
+    "durationValue": 1,
+    "durationCmp": ">",
+    "m2Value": None,
+    "m2Cmp": None,
+    "openSpace": None
+    },
+]
+
+free_rules = [
+    {
+    "contagionRisk": 0,
+    "durationValue": 1000,
+    "durationCmp": ">",
+    "m2Value": None,
+    "m2Cmp": None,
+    "openSpace": None
+    },
+]
 
 
 '''
@@ -30,5 +75,9 @@ Params of simulation:
 
 @app.route("/simulation", methods=['GET'])
 def simulation():
-    body = request.get_json()
-    return Simulator.run(**body)
+    print("aca")
+    #body = request.get_json()
+    #return Simulator.run(**body)
+    return jsonify(sim.run(rules_info=restricted_rules, t=10, n_pop=100, n_places=10))
+
+app.run(host="0.0.0.0", port=5000)

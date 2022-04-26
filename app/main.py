@@ -1,5 +1,6 @@
 from flask import Flask, request, jsonify
 #from flask_swagger_ui import get_swaggerui_blueprint
+from flask_cors import CORS
 
 from simulator import Simulator
 
@@ -19,6 +20,7 @@ def setup_swaggerui(app):
 
 
 app = Flask(__name__)
+CORS(app)
 #setup_swaggerui(app)
 
 sim = Simulator()

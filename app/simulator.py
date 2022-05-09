@@ -70,20 +70,27 @@ def shared_time(a, b): # in minutes
 
 class Rule:
     def __init__(self, params):
-        self.risk=params['contagionRisk']
-        self.durationValue=params['durationValue']
-        self.durationCmp=params['durationCmp']
-        self.m2Value=params['m2Value']
-        self.m2Cmp=params['m2Cmp']
-        self.openSpace=params['openSpace']
+        self._parse_field('contagionRisk', params)
+        self._parse_field('durationValue', params)
+        self._parse_field('durationCmp', params)
+        self._parse_field('m2Value', params)
+        self._parse_field('m2Cmp', params)
+        self._parse_field('openSpace', params)
+        self._parse_field('vaccinated', params)
+        self._parse_field('illnessRecovered', params)
+        self._parse_field('illnessRecoveredDaysAgoMax', params)
+
         #self.n95Mandatory=params['n95Mandatory']
         #self.vaccinated=params['vaccinated']
         #self.vaccineReceived=params['vaccineReceived']
         #self.vaccinatedDaysAgoMin=params['vaccinatedDaysAgoMin']
         #self.illnessRecovered=params['illnessRecovered']
         #self.illnessRecoveredDaysAgoMax=params['illnessRecoveredDaysAgoMax']
-        #for key, value in params:
+        #for key, value in params.items():
         #    setattr(self, key, value)
+
+    def _parse_field(self, field, info):
+        setattr(self, field, info[field] if field in info else None)
 
     def apply(self, visit_a, visit_b, shared):
         infected = visit_a.person.infected or visit_b.person.infected
@@ -107,7 +114,7 @@ class Rule:
             check &= visit_a.place.openSpace == self.openSpace
 
         if check:
-            return self.risk
+            return self.contagionRisk
 		
 
 
@@ -137,7 +144,7 @@ class Person:
     def update_risk(self, risk):
         self.risk = risk
         if risk == HIGH_RISK: # reduce mobility
-            print("REDUCED MOBILITY")
+            #print("REDUCED MOBILITY")
             self.locked_down = True
             self.locked_down_counter = LOCKDOWN_RESTRICTION
 
@@ -187,10 +194,10 @@ class Simulator:
         
     def _update_person(self, person, day, places, visits_of_day):
         if person.locked_down:
-            print("CANT MOVE")
+            #print("CANT MOVE")
             person.locked_down_counter -= 1
             if person.locked_down_counter == 0:
-                print("IM FREE")
+                #print("IM FREE")
                 person.locked_down = False
                 person.risk = LOW_RISK
 
@@ -213,7 +220,7 @@ class Simulator:
 
             visit = Visit(timestamp,  duration, person, place)
 
-            print(f"CREATE VISIT at {place.id} hour: {timestamp.hour} minute: {timestamp.minute}")
+            #print(f"CREATE VISIT at {place.id} hour: {timestamp.hour} minute: {timestamp.minute}")
 
             key = (place.id, timestamp.hour)
 
@@ -233,7 +240,7 @@ class Simulator:
                     if not shared:
                         continue
 
-                    print(f"OVERLAP ON {visit_a.place.id} at A:[{visit_a.timestamp.minute};{visit_a.timestamp.minute + visit_a.duration}] B:[{visit_b.timestamp.minute};{visit_b.timestamp.minute + visit_b.duration}] SHARED {shared}")
+                    #print(f"OVERLAP ON {visit_a.place.id} at A:[{visit_a.timestamp.minute};{visit_a.timestamp.minute + visit_a.duration}] B:[{visit_b.timestamp.minute};{visit_b.timestamp.minute + visit_b.duration}] SHARED {shared}")
 
                     risk = LOW_RISK
                     for rule in rules:
@@ -275,21 +282,16 @@ class Simulator:
 
     def run(self, n_pop=100, n_places=5, t=10, rules_info=[], seed=None, init_infected = 0.05): #T is in days
         if seed: random.seed(seed)
-        print("INIT SIMULATION")
         population = [Person() for p in range(n_pop)]
-        print("INIT POPULATION")
         places = [Place(pl) for pl in range(n_places)]
-        print("INIT PLACES")
         rules = [Rule(info) for info in rules_info]
-        print("INIT RULES")
         self._assign_places(len(places), population)
-        print("ASSIGNED PLACES")
 
         self._infect_population(population, init_infected)
 
         report = []
         for i in range(t):
-            print(f"DAY {i}")
+            #print(f"DAY {i}")
             visits_of_day = {}
             for person in population:
                 self._update_person(person, i, places, visits_of_day)

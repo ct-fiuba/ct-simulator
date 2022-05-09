@@ -75,11 +75,12 @@ Params of simulation:
 - seed: to be able to recreate simulations [int]
 '''
 
-@app.route("/simulation", methods=['GET'])
+@app.route("/simulation", methods=['POST'])
 def simulation():
-    print("aca")
-    #body = request.get_json()
-    #return Simulator.run(**body)
-    return jsonify(sim.run(rules_info=restricted_rules, t=10, n_pop=100, n_places=10))
+    body = request.get_json()
+    print(body)
+    init_infected = body["infectedUsers"] / body["users"] 
+    print(init_infected)
+    return jsonify(sim.run(rules_info=body["rules"], t=body["days"], n_pop=body["users"], n_places=body["establishments"], init_infected=init_infected))
 
 app.run(host="0.0.0.0", port=5000)

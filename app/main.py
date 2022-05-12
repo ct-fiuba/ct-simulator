@@ -82,15 +82,17 @@ def simulation():
     body = request.get_json()
     print(body)
     init_infected = body["infectedUsers"] / body["users"]
-    print(init_infected)
+    print("ACA", body["mobility"])
     return jsonify(
         sim.run(
+            seed=body["seed"] if "seed" in body else None,
             rules_info=body["rules"],
             t=body["days"],
             n_pop=body["users"],
             n_places=body["establishments"],
             init_infected=init_infected,
             mobility=body["mobility"],
+            lockdown_restriction=body["lockdownRestriction"] if "seed" in body else None
         )
     )
 

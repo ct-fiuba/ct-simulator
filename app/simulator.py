@@ -89,8 +89,6 @@ class Rule:
 
     def _parse_field(self, field, info):
         setattr(self, field, info[field] if field in info else None)
-        if field in info:
-            print(info[field])
 
     def apply(self, visit_a, visit_b, shared):
         infected = visit_a.person.infected or visit_b.person.infected
@@ -119,7 +117,7 @@ class Rule:
 
 
 class Person:
-    def __init__(self):
+    def __init__(self, lockdown_restriction):
         self.vacinated = random.randint(0, 1)
         self.recovered = False
 
@@ -128,6 +126,8 @@ class Person:
         self.locked_down = False
         self.locked_down_counter = 0
         self.fav_places = []
+        self.lockdown_restriction = lockdown_restriction
+        self.vaccinated = random.randint(0,2)
         self.risk = LOW_RISK
 
     def places_to_visit(self):
@@ -148,7 +148,7 @@ class Person:
         if risk == HIGH_RISK:  # reduce mobility
             # print("REDUCED MOBILITY")
             self.locked_down = True
-            self.locked_down_counter = LOCKDOWN_RESTRICTION
+            self.locked_down_counter = self.lockdown_restriction
 
         proba_infected = random.random()
 
@@ -188,7 +188,7 @@ class Simulator:
     def _assign_places(self, n_places, population, mobility):
         for person in population:
             places_idxs = set()
-            for _ in range(mobility):
+            while len(places_idxs) < mobility:
                 idx = random.randint(0, n_places - 1)
                 places_idxs.add(idx)
 
@@ -297,10 +297,11 @@ class Simulator:
         mobility=FAV_PLACES,
         seed=None,
         init_infected=0.05,
+        lockdown_restriction=LOCKDOWN_RESTRICTION
     ):  # T is in days
         if seed:
             random.seed(seed)
-        population = [Person() for p in range(n_pop)]
+        population = [Person(lockdown_restriction) for p in range(n_pop)]
         places = [Place(pl) for pl in range(n_places)]
         rules = [Rule(info) for info in rules_info]
         self._assign_places(len(places), population, mobility)

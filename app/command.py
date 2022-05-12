@@ -4,42 +4,42 @@ sim = Simulator()
 
 rules = [
     {
-    "contagionRisk": 2,
-    "durationValue": 20,
-    "durationCmp": ">",
-    "m2Value": None,
-    "m2Cmp": None,
-    "openSpace": None
+        "contagionRisk": 2,
+        "durationValue": 20,
+        "durationCmp": ">",
+        "m2Value": None,
+        "m2Cmp": None,
+        "openSpace": None,
     },
     {
-    "contagionRisk": 1,
-    "m2Value": 20,
-    "m2Cmp": "<",
-    "durationValue": None,
-    "durationCmp": None,
-    "openSpace": None
+        "contagionRisk": 1,
+        "m2Value": 20,
+        "m2Cmp": "<",
+        "durationValue": None,
+        "durationCmp": None,
+        "openSpace": None,
     },
 ]
 
 restricted_rules = [
     {
-    "contagionRisk": 2,
-    "durationValue": 1,
-    "durationCmp": ">",
-    "m2Value": None,
-    "m2Cmp": None,
-    "openSpace": None
+        "contagionRisk": 2,
+        "durationValue": 1,
+        "durationCmp": ">",
+        "m2Value": None,
+        "m2Cmp": None,
+        "openSpace": None,
     },
 ]
 
 free_rules = [
     {
-    "contagionRisk": 0,
-    "durationValue": 1000,
-    "durationCmp": ">",
-    "m2Value": None,
-    "m2Cmp": None,
-    "openSpace": None
+        "contagionRisk": 0,
+        "durationValue": 1000,
+        "durationCmp": ">",
+        "m2Value": None,
+        "m2Cmp": None,
+        "openSpace": None,
     },
 ]
 

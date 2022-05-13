@@ -83,16 +83,19 @@ def simulation():
     print(body)
     init_infected = body["infectedUsers"] / body["users"]
     print("ACA", body["mobility"])
-    return jsonify(
-        sim.run(
-            seed=body["seed"] if "seed" in body else None,
+    kwargs = dict(
+        seed=body["seed"] if "seed" in body else None,
             rules_info=body["rules"],
             t=body["days"],
             n_pop=body["users"],
             n_places=body["establishments"],
             init_infected=init_infected,
             mobility=body["mobility"],
-            lockdown_restriction=body["lockdownRestriction"] if "seed" in body else None
+            lockdown_restriction=body["lockdownRestriction"] if "lockdownRestriction" in body else None
+    )
+    return jsonify(
+        sim.run(
+            **{k: v for k, v in kwargs.items() if v is not None}
         )
     )
 

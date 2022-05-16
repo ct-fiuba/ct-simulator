@@ -1,5 +1,6 @@
 import random
 import itertools
+import math
 
 """
 RULE:
@@ -56,7 +57,12 @@ DAY = 24
 
 HOUR = 60
 
-INFECTED_PROBABILITIES = {LOW_RISK: 0.01, MID_RISK: 0.1, HIGH_RISK: 0.5}
+RISKS_TO_NUMBER = {"low": 0, "mid": 1, "high": 2}
+NUMBER_TO_RISK=["low", "mid", "high"]
+
+INFECTED_PROBABILITIES = {"low": 0.001, "mid": 0.05, "high": 0.5}
+
+PARTIAL_VACCINATED, FULL_VACCINATED = 1, 2
 
 
 def shared_time(a, b):  # in minutes
@@ -75,8 +81,6 @@ class Rule:
         self._parse_field("m2Cmp", params)
         self._parse_field("openSpace", params)
         self._parse_field("vaccinated", params)
-        self._parse_field("illnessRecovered", params)
-        self._parse_field("illnessRecoveredDaysAgoMax", params)
 
         # self.n95Mandatory=params['n95Mandatory']
         # self.vaccinated=params['vaccinated']
@@ -94,7 +98,7 @@ class Rule:
         infected = visit_a.person.infected or visit_b.person.infected
 
         if not infected:
-            return
+            return False, 0
 
         check = True
         if self.durationValue != None:
@@ -112,12 +116,18 @@ class Rule:
         if self.openSpace != None:
             check &= visit_a.place.openSpace == self.openSpace
 
-        if check:
-            return self.contagionRisk
+        if self.vaccinated != None:
+            if visit_a.person.infected:
+                check &= visit_b.person.vaccinated == self.vaccinated
+
+            if visit_b.person.infected:
+                check &= visit_a.person.vaccinated == self.vaccinated
+
+        return check, self.contagionRisk
 
 
 class Person:
-    def __init__(self, lockdown_restriction):
+    def __init__(self, lockdown_restriction, probabilites):
         self.vacinated = random.randint(0, 1)
         self.recovered = False
 
@@ -127,14 +137,18 @@ class Person:
         self.locked_down_counter = 0
         self.fav_places = []
         self.lockdown_restriction = lockdown_restriction
-        self.vaccinated = random.randint(0,2)
+        self.probabilities = probabilites
+        self.vaccinated = 0
         self.risk = LOW_RISK
 
     def places_to_visit(self):
-        n_places_to_visit = random.randint(
-            0, TOTAL_RISK - self.risk
-        )  # inverso al riesgo
+        
         n_places = len(self.fav_places)
+
+        n_places_to_visit = random.randint(
+            0, math.floor(n_places * (TOTAL_RISK - self.risk)/TOTAL_RISK)
+        )  # inverso al riesgo
+        
         places = []
         for _ in range(n_places_to_visit):
             idx = random.randint(1, n_places - 1)
@@ -142,6 +156,14 @@ class Person:
             places.append(idx)
 
         return places
+
+    def get_infected(self):
+        self.infected = True
+        self.infected_counter = INFECTED_WINDOW
+
+    def get_cured(self):
+        self.infected = False
+        self.infected_counter = 0
 
     def update_risk(self, risk):
         self.risk = risk
@@ -152,9 +174,8 @@ class Person:
 
         proba_infected = random.random()
 
-        if proba_infected < INFECTED_PROBABILITIES[self.risk]:
-            self.infected = True
-            self.infected_counter = INFECTED_WINDOW
+        if not self.infected and proba_infected < self.probabilities[NUMBER_TO_RISK[self.risk]]:
+            self.get_infected()
 
 
 class Place:
@@ -195,6 +216,11 @@ class Simulator:
             person.fav_places = places_idxs
 
     def _update_person(self, person, day, places, visits_of_day):
+        if person.infected:
+            person.infected_counter -= 1
+            if person.infected_counter <= 0:
+                person.get_cured()
+
         if person.locked_down:
             # print("CANT MOVE")
             person.locked_down_counter -= 1
@@ -202,12 +228,10 @@ class Simulator:
                 # print("IM FREE")
                 person.locked_down = False
                 person.risk = LOW_RISK
-
-        if person.infected:
-            person.infected_counter -= 1
-            if person.infected_counter == 0:
-                person.infected = False
             return
+
+        
+            #return
 
         visited_places = person.places_to_visit()
 
@@ -245,22 +269,32 @@ class Simulator:
                     # print(f"OVERLAP ON {visit_a.place.id} at A:[{visit_a.timestamp.minute};{visit_a.timestamp.minute + visit_a.duration}] B:[{visit_b.timestamp.minute};{visit_b.timestamp.minute + visit_b.duration}] SHARED {shared}")
 
                     risk = LOW_RISK
+                    should_update = False
                     for rule in rules:
-                        rule_applied = rule.apply(visit_a, visit_b, shared)
+                        rule_applied, new_risk = rule.apply(visit_a, visit_b, shared)
+                        should_update |= rule_applied
 
-                        risk = risk if not rule_applied else max(rule_applied, risk)
+                        risk = risk if not rule_applied else max(new_risk, risk)
                         if rule_applied:
                             break
 
-                    visit_a.person.update_risk(risk)
-                    visit_b.person.update_risk(risk)
+                    if should_update:
+                        visit_a.person.update_risk(risk)
+                        visit_b.person.update_risk(risk)
 
     def _infect_population(self, population, init_infected):
         for person in population:
             proba = random.random()
 
             if proba < init_infected:
-                person.infected = True
+                person.get_infected()
+
+    def _vaccinate_population(self, population, vaccine, p_vaccine):
+        for person in population:
+            proba = random.random()
+
+            if proba < p_vaccine:
+                person.vaccinated = vaccine
 
     def _daily_report(self, population, report, day):
         pop_low = 0
@@ -297,22 +331,28 @@ class Simulator:
         mobility=FAV_PLACES,
         seed=None,
         init_infected=0.05,
-        lockdown_restriction=LOCKDOWN_RESTRICTION
+        lockdown_restriction=LOCKDOWN_RESTRICTION,
+        probabilities=INFECTED_PROBABILITIES,
+        partially_vaccinated=0,
+        fully_vaccinated=0
     ):  # T is in days
         if seed:
             random.seed(seed)
-        population = [Person(lockdown_restriction) for p in range(n_pop)]
+        population = [Person(lockdown_restriction, probabilities) for p in range(n_pop)]
         places = [Place(pl) for pl in range(n_places)]
         rules = [Rule(info) for info in rules_info]
         self._assign_places(len(places), population, mobility)
 
         self._infect_population(population, init_infected)
+        self._vaccinate_population(population, FULL_VACCINATED, fully_vaccinated)
+        self._vaccinate_population(population, PARTIAL_VACCINATED, partially_vaccinated)
 
         report = []
         for i in range(t):
             # print(f"DAY {i}")
             visits_of_day = {}
-            for person in population:
+            for p, person in enumerate(population):
+                #print("person day", p, i)
                 self._update_person(person, i, places, visits_of_day)
 
             self._apply_rules(visits_of_day, rules)
@@ -338,6 +378,9 @@ poner a los establecimientos en un lugar
 simular los puntitos moviendose y cambiando de colores
 
 
+desdoblar la movilidad en dos: variabilidad y cantidad de salidas por dia
+agregar distribucion de establecimientos
+
 
 Posibles mejoras a la simulacion:
 ---------------------------------
@@ -346,4 +389,6 @@ Posibles mejoras a la simulacion:
 - no todos los lugares tienen igual chance de ser visitados (hay lugares mas concurridos)
 - proba de contagio variable segun el dia de la enfermedad
 - usar https://scikit-mobility.github.io/scikit-mobility/reference/models.html#module-skmob.models.markov_diary_generator
+
+
 """

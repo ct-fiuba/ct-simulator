@@ -81,17 +81,18 @@ Params of simulation:
 def simulation():
     body = request.get_json()
     print(body)
-    init_infected = body["infectedUsers"] / body["users"]
-    print("ACA", body["mobility"])
     kwargs = dict(
         seed=body["seed"] if "seed" in body else None,
             rules_info=body["rules"],
             t=body["days"],
             n_pop=body["users"],
             n_places=body["establishments"],
-            init_infected=init_infected,
+            init_infected=body["infectedUsers"],
             mobility=body["mobility"],
-            lockdown_restriction=body["lockdownRestriction"] if "lockdownRestriction" in body else None
+            lockdown_restriction=body["lockdownRestriction"] if "lockdownRestriction" in body else None,
+            probabilities=body["p"] if "p" in body else None,
+            partially_vaccinated=body["partiallyVaccinated"] if "partiallyVaccinated" in body else None,
+            fully_vaccinated=body["fullyVaccinated"] if "fullyVaccinated" in body else None
     )
     return jsonify(
         sim.run(

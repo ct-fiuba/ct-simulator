@@ -58,7 +58,7 @@ DAY = 24
 HOUR = 60
 
 RISKS_TO_NUMBER = {"low": 0, "mid": 1, "high": 2}
-NUMBER_TO_RISK=["low", "mid", "high"]
+NUMBER_TO_RISK = ["low", "mid", "high"]
 
 INFECTED_PROBABILITIES = {"low": 0.001, "mid": 0.05, "high": 0.5}
 
@@ -127,7 +127,7 @@ class Rule:
 
 
 class Person:
-    def __init__(self, lockdown_restriction, probabilites):
+    def __init__(self, lockdown_restriction, probabilites, visits_frequency):
         self.vacinated = random.randint(0, 1)
         self.recovered = False
 
@@ -138,17 +138,20 @@ class Person:
         self.fav_places = []
         self.lockdown_restriction = lockdown_restriction
         self.probabilities = probabilites
+        self.visits_frequency = visits_frequency
         self.vaccinated = 0
         self.risk = LOW_RISK
 
     def places_to_visit(self):
-        
+
         n_places = len(self.fav_places)
 
         n_places_to_visit = random.randint(
-            0, math.floor(n_places * (TOTAL_RISK - self.risk)/TOTAL_RISK)
+            0, math.floor(self.visits_frequency * (TOTAL_RISK - self.risk) / TOTAL_RISK)
         )  # inverso al riesgo
-        
+
+        #print(n_places_to_visit)
+
         places = []
         for _ in range(n_places_to_visit):
             idx = random.randint(1, n_places - 1)
@@ -174,7 +177,10 @@ class Person:
 
         proba_infected = random.random()
 
-        if not self.infected and proba_infected < self.probabilities[NUMBER_TO_RISK[self.risk]]:
+        if (
+            not self.infected
+            and proba_infected < self.probabilities[NUMBER_TO_RISK[self.risk]]
+        ):
             self.get_infected()
 
 
@@ -206,12 +212,14 @@ class Simulator:
     def __init__(self):
         pass
 
-    def _assign_places(self, n_places, population, mobility):
+    def _assign_places(self, n_places, population):
         for person in population:
             places_idxs = set()
-            while len(places_idxs) < mobility:
+            #print(self.variability)
+            while len(places_idxs) < self.variability:
                 idx = random.randint(0, n_places - 1)
                 places_idxs.add(idx)
+            print(self.variability, places_idxs)
 
             person.fav_places = places_idxs
 
@@ -230,8 +238,7 @@ class Simulator:
                 person.risk = LOW_RISK
             return
 
-        
-            #return
+            # return
 
         visited_places = person.places_to_visit()
 
@@ -328,20 +335,27 @@ class Simulator:
         n_places=5,
         t=10,
         rules_info=[],
-        mobility=FAV_PLACES,
+        mobility={},
         seed=None,
         init_infected=0.05,
         lockdown_restriction=LOCKDOWN_RESTRICTION,
         probabilities=INFECTED_PROBABILITIES,
         partially_vaccinated=0,
-        fully_vaccinated=0
+        fully_vaccinated=0,
     ):  # T is in days
         if seed:
             random.seed(seed)
-        population = [Person(lockdown_restriction, probabilities) for p in range(n_pop)]
+
+        visits_frequency = mobility["frequency"]
+        population = [
+            Person(lockdown_restriction, probabilities, visits_frequency)
+            for p in range(n_pop)
+        ]
         places = [Place(pl) for pl in range(n_places)]
         rules = [Rule(info) for info in rules_info]
-        self._assign_places(len(places), population, mobility)
+
+        self.variability = mobility["variability"]
+        self._assign_places(len(places), population)
 
         self._infect_population(population, init_infected)
         self._vaccinate_population(population, FULL_VACCINATED, fully_vaccinated)
@@ -352,7 +366,7 @@ class Simulator:
             # print(f"DAY {i}")
             visits_of_day = {}
             for p, person in enumerate(population):
-                #print("person day", p, i)
+                # print("person day", p, i)
                 self._update_person(person, i, places, visits_of_day)
 
             self._apply_rules(visits_of_day, rules)

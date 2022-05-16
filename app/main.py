@@ -83,22 +83,22 @@ def simulation():
     print(body)
     kwargs = dict(
         seed=body["seed"] if "seed" in body else None,
-            rules_info=body["rules"],
-            t=body["days"],
-            n_pop=body["users"],
-            n_places=body["establishments"],
-            init_infected=body["infectedUsers"],
-            mobility=body["mobility"],
-            lockdown_restriction=body["lockdownRestriction"] if "lockdownRestriction" in body else None,
-            probabilities=body["p"] if "p" in body else None,
-            partially_vaccinated=body["partiallyVaccinated"] if "partiallyVaccinated" in body else None,
-            fully_vaccinated=body["fullyVaccinated"] if "fullyVaccinated" in body else None
+        rules_info=body["rules"],
+        t=body["days"],
+        n_pop=body["users"],
+        n_places=body["establishments"],
+        init_infected=body["infectedUsers"],
+        mobility=body["mobility"],
+        lockdown_restriction=body["lockdownRestriction"]
+        if "lockdownRestriction" in body
+        else None,
+        probabilities=body["p"] if "p" in body else None,
+        partially_vaccinated=body["partiallyVaccinated"]
+        if "partiallyVaccinated" in body
+        else None,
+        fully_vaccinated=body["fullyVaccinated"] if "fullyVaccinated" in body else None,
     )
-    return jsonify(
-        sim.run(
-            **{k: v for k, v in kwargs.items() if v is not None}
-        )
-    )
+    return jsonify(sim.run(**{k: v for k, v in kwargs.items() if v is not None}))
 
 
 app.run(host="0.0.0.0", port=5000)

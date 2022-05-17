@@ -89,9 +89,11 @@ def simulation():
         n_places=body["establishments"],
         init_infected=body["infectedUsers"],
         mobility=body["mobility"],
+        infected_days=body["infectedDays"],
         lockdown_restriction=body["lockdownRestriction"]
         if "lockdownRestriction" in body
         else None,
+        incubation_period=body["incubationDays"],
         probabilities=body["p"] if "p" in body else None,
         partially_vaccinated=body["partiallyVaccinated"]
         if "partiallyVaccinated" in body

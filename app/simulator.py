@@ -1,6 +1,7 @@
 import random
 import itertools
 import math
+import numpy as np
 
 """
 RULE:
@@ -64,12 +65,19 @@ INFECTED_PROBABILITIES = {"low": 0.001, "mid": 0.05, "high": 0.5}
 
 PARTIAL_VACCINATED, FULL_VACCINATED = 1, 2
 
+MOBILITY = {"fequency": 5, "variability": 5}
+
+INCUBATION_PERIOD = 3
+
 
 def shared_time(a, b):  # in minutes
     range_a = range(a.timestamp.minute, a.timestamp.minute + a.duration)
     range_b = range(b.timestamp.minute, b.timestamp.minute + b.duration)
 
     return len(set(range_a) & set(range_b))
+
+def random_boolean():
+    return random.choice([True, False])
 
 
 class Rule:
@@ -127,8 +135,8 @@ class Rule:
 
 
 class Person:
-    def __init__(self, lockdown_restriction, probabilites, visits_frequency):
-        self.vacinated = random.randint(0, 1)
+    def __init__(self, id, lockdown_restriction, probabilites, visits_frequency, infected_days, incubation_period):
+        self.id = id
         self.recovered = False
 
         self.infected = False
@@ -139,8 +147,13 @@ class Person:
         self.lockdown_restriction = lockdown_restriction
         self.probabilities = probabilites
         self.visits_frequency = visits_frequency
+        self.infected_days = infected_days
         self.vaccinated = 0
         self.risk = LOW_RISK
+        self.incubation_period = incubation_period
+        self.incubating = False
+        self.incubating_counter = 0
+        self.restricted = False
 
     def places_to_visit(self):
 
@@ -154,15 +167,21 @@ class Person:
 
         places = []
         for _ in range(n_places_to_visit):
-            idx = random.randint(1, n_places - 1)
+            idx = random.randint(0, n_places - 1)
 
             places.append(idx)
 
         return places
 
-    def get_infected(self):
-        self.infected = True
-        self.infected_counter = INFECTED_WINDOW
+    def get_infected(self, now=False):
+        if now:
+            self.incubating = False
+            self.incubating_counter = 0
+            self.infected = True
+            self.infected_counter = self.infected_days
+        else:
+            self.incubating = True
+            self.incubating_counter = self.incubation_period
 
     def get_cured(self):
         self.infected = False
@@ -171,14 +190,19 @@ class Person:
     def update_risk(self, risk):
         self.risk = risk
         if risk == HIGH_RISK:  # reduce mobility
-            # print("REDUCED MOBILITY")
+            #print("REDUCED MOBILITY")
             self.locked_down = True
             self.locked_down_counter = self.lockdown_restriction
+
+        elif risk == MID_RISK:
+            self.restricted = True
+            self.locked_down_counter = self.lockdown_restriction//2
 
         proba_infected = random.random()
 
         if (
-            not self.infected
+            not self.incubating
+            and not self.infected
             and proba_infected < self.probabilities[NUMBER_TO_RISK[self.risk]]
         ):
             self.get_infected()
@@ -187,8 +211,8 @@ class Person:
 class Place:
     def __init__(self, id):
         self.id = id
-        self.openSpace = random.randint(0, 1)
-        self.n95mandatory = random.randint(0, 1)
+        self.openSpace = random_boolean()
+        self.n95mandatory = random_boolean()
         self.m2 = random.randint(5, 100)
         self.estimatedVisitDuration = random.randint(5, 60)  # min
 
@@ -215,26 +239,27 @@ class Simulator:
     def _assign_places(self, n_places, population):
         for person in population:
             places_idxs = set()
-            #print(self.variability)
             while len(places_idxs) < self.variability:
                 idx = random.randint(0, n_places - 1)
                 places_idxs.add(idx)
-            print(self.variability, places_idxs)
 
             person.fav_places = places_idxs
 
     def _update_person(self, person, day, places, visits_of_day):
-        if person.infected:
+        if person.incubating:
+            person.incubating_counter -= 1
+            if person.incubating_counter < 0:
+                person.get_infected(now=True)
+        elif person.infected:
             person.infected_counter -= 1
             if person.infected_counter <= 0:
                 person.get_cured()
 
-        if person.locked_down:
-            # print("CANT MOVE")
+        if person.locked_down or person.restricted:
             person.locked_down_counter -= 1
             if person.locked_down_counter == 0:
-                # print("IM FREE")
                 person.locked_down = False
+                person.restricted = False
                 person.risk = LOW_RISK
             return
 
@@ -265,15 +290,16 @@ class Simulator:
             visits_of_day[key].append(visit)
 
     def _apply_rules(self, visits, rules):
-        for visits_by_hour in visits.values():
+        for key, visits_by_hour in visits.items():
             if len(visits_by_hour) > 1:
+                #print(key, len(visits_by_hour))
                 for visit_a, visit_b in itertools.combinations(visits_by_hour, 2):
                     shared = shared_time(visit_a, visit_b)
 
                     if not shared:
                         continue
 
-                    # print(f"OVERLAP ON {visit_a.place.id} at A:[{visit_a.timestamp.minute};{visit_a.timestamp.minute + visit_a.duration}] B:[{visit_b.timestamp.minute};{visit_b.timestamp.minute + visit_b.duration}] SHARED {shared}")
+                    #print(f"OVERLAP ON {visit_a.place.id} at A:[{visit_a.timestamp.minute};{visit_a.timestamp.minute + visit_a.duration}] B:[{visit_b.timestamp.minute};{visit_b.timestamp.minute + visit_b.duration}] SHARED {shared}")
 
                     risk = LOW_RISK
                     should_update = False
@@ -286,6 +312,7 @@ class Simulator:
                             break
 
                     if should_update:
+                        #print(f"HUBO CONTAGIO EN {visit_a.place.id} {visit_b.place.id}")
                         visit_a.person.update_risk(risk)
                         visit_b.person.update_risk(risk)
 
@@ -294,7 +321,7 @@ class Simulator:
             proba = random.random()
 
             if proba < init_infected:
-                person.get_infected()
+                person.get_infected(now=True)
 
     def _vaccinate_population(self, population, vaccine, p_vaccine):
         for person in population:
@@ -329,26 +356,44 @@ class Simulator:
             }
         )
 
+    def _places_statistics(self, places):
+        stats = {
+            "m2": [],
+            "openSpace": [],
+            "estimatedVisitDuration": []
+        }
+        for place in places:
+            for char in stats.keys():
+                stats[char].append(getattr(place, char))
+
+        for char, values in stats.items():
+            print(char)
+            unique_elements, counts_elements = np.unique(values, return_counts=True)
+            print(np.asarray((unique_elements, counts_elements)))
+
+
     def run(
         self,
         n_pop=100,
         n_places=5,
-        t=10,
+        t=10, #days
         rules_info=[],
-        mobility={},
+        mobility=MOBILITY,
         seed=None,
         init_infected=0.05,
+        infected_days=INFECTED_WINDOW,
         lockdown_restriction=LOCKDOWN_RESTRICTION,
         probabilities=INFECTED_PROBABILITIES,
         partially_vaccinated=0,
         fully_vaccinated=0,
-    ):  # T is in days
+        incubation_period=INCUBATION_PERIOD
+    ):
         if seed:
             random.seed(seed)
 
         visits_frequency = mobility["frequency"]
         population = [
-            Person(lockdown_restriction, probabilities, visits_frequency)
+            Person(p, lockdown_restriction, probabilities, visits_frequency, infected_days, incubation_period)
             for p in range(n_pop)
         ]
         places = [Place(pl) for pl in range(n_places)]
@@ -363,7 +408,7 @@ class Simulator:
 
         report = []
         for i in range(t):
-            # print(f"DAY {i}")
+            #print(f"DAY {i}")
             visits_of_day = {}
             for p, person in enumerate(population):
                 # print("person day", p, i)
@@ -371,6 +416,9 @@ class Simulator:
 
             self._apply_rules(visits_of_day, rules)
             self._daily_report(population, report, i)
+
+        #self._population_statistics()
+        #self._places_statistics(places)
 
         return report
 
@@ -392,8 +440,9 @@ poner a los establecimientos en un lugar
 simular los puntitos moviendose y cambiando de colores
 
 
-desdoblar la movilidad en dos: variabilidad y cantidad de salidas por dia
 agregar distribucion de establecimientos
+
+agregar dias hasta presentar sintomas
 
 
 Posibles mejoras a la simulacion:

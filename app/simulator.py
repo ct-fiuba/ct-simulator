@@ -69,6 +69,8 @@ MOBILITY = {"fequency": 5, "variability": 5}
 
 INCUBATION_PERIOD = 3
 
+DEFAULT_PROBABILITY = 0.5 # tose a coin
+
 
 def shared_time(a, b):  # in minutes
     range_a = range(a.timestamp.minute, a.timestamp.minute + a.duration)
@@ -103,11 +105,6 @@ class Rule:
         setattr(self, field, info[field] if field in info else None)
 
     def apply(self, visit_a, visit_b, shared):
-        infected = visit_a.person.infected or visit_b.person.infected
-
-        if not infected:
-            return False, 0
-
         check = True
         if self.durationValue != None:
             if self.durationCmp == "<":
@@ -155,6 +152,9 @@ class Person:
         self.incubating_counter = 0
         self.restricted = False
 
+    def __str__(self):
+        return f"Person {self.id} | infected {self.infected} | incubating {self.incubating} | risk {self.risk} | vaccinated {self.vaccinated}"
+
     def places_to_visit(self):
 
         n_places = len(self.fav_places)
@@ -198,12 +198,15 @@ class Person:
             self.restricted = True
             self.locked_down_counter = self.lockdown_restriction//2
 
+        self.expose_to_virus(p=self.probabilities[NUMBER_TO_RISK[self.risk]])
+
+    def expose_to_virus(self, p=DEFAULT_PROBABILITY):
         proba_infected = random.random()
 
         if (
             not self.incubating
             and not self.infected
-            and proba_infected < self.probabilities[NUMBER_TO_RISK[self.risk]]
+            and proba_infected < p
         ):
             self.get_infected()
 
@@ -215,6 +218,9 @@ class Place:
         self.n95mandatory = random_boolean()
         self.m2 = random.randint(5, 100)
         self.estimatedVisitDuration = random.randint(5, 60)  # min
+
+    def __str__(self):
+        return f"Place {self.id} | openSpace {self.openSpace} | m2 {self.m2} | estimatedVisitDuration {self.estimatedVisitDuration}"
 
 
 class Timestamp:
@@ -231,6 +237,8 @@ class Visit:
         self.person = person
         self.place = place
 
+    def __str__(self) -> str:
+        return f"{str(self.place)} || {str(self.person)} || {self.duration}"
 
 class Simulator:
     def __init__(self):
@@ -299,6 +307,11 @@ class Simulator:
                     if not shared:
                         continue
 
+                    infected = visit_a.person.infected or visit_b.person.infected
+
+                    if not infected:
+                        continue
+
                     #print(f"OVERLAP ON {visit_a.place.id} at A:[{visit_a.timestamp.minute};{visit_a.timestamp.minute + visit_a.duration}] B:[{visit_b.timestamp.minute};{visit_b.timestamp.minute + visit_b.duration}] SHARED {shared}")
 
                     risk = LOW_RISK
@@ -315,6 +328,13 @@ class Simulator:
                         #print(f"HUBO CONTAGIO EN {visit_a.place.id} {visit_b.place.id}")
                         visit_a.person.update_risk(risk)
                         visit_b.person.update_risk(risk)
+                    else:
+                        print(visit_a)
+                        print(visit_b)
+                        print(shared)
+                        visit_a.person.expose_to_virus()
+                        visit_b.person.expose_to_virus()
+
 
     def _infect_population(self, population, init_infected):
         for person in population:

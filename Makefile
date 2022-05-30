@@ -1,5 +1,5 @@
 ENVDIR := env
-HEROKU_APP_NAME := ct-simulator
+HEROKU_APP_NAME := contact-tracing-simulator
 
 
 # -- Run scripts

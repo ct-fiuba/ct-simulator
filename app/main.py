@@ -1,3 +1,5 @@
+import sys
+
 from flask import Flask, request, jsonify
 
 # from flask_swagger_ui import get_swaggerui_blueprint
@@ -102,5 +104,12 @@ def simulation():
     )
     return jsonify(sim.run(**{k: v for k, v in kwargs.items() if v is not None}))
 
+def main(args=[]):
+    app_port = 5000 if len(args)<=1 else args[1]
 
-app.run(host="0.0.0.0", port=5000)
+    app.run(host="0.0.0.0", port=app_port)
+
+if __name__ == '__main__':
+    main(sys.argv)
+
+

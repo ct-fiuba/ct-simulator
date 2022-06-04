@@ -23,24 +23,26 @@ index={rule.index}
 
 NIVELES DE RIESGO:
 Alto: movilidad reducida a 0, no puede visitar lugares
-Medio: movilidad reducida a solo visitar 1 lugar por dia
-Bajo: visita 2/3 lugares por dia
+Medio: movilidad reducida a la mitad de la frecuenca
+Bajo: visita la totalidad de la frecuencia configurada
 
 
 ASUMO:
 
 - En una pandemia el movimiento es reducido pero existe
-- Una persona va a por lo menos 5 lugares, (trabajo, supermercado, casa(nocuenta), farmacia y 2 comercios mas )
-- Cada persona va a visitar esos 5 lugares ciclando por el T tiempo en el q transcurre la simulacion
+- Una persona va a por lo menos F lugares, (trabajo, supermercado, casa(nocuenta), farmacia, etc )
+- Cada persona va a visitar esos F lugares ciclando por el T tiempo en el q transcurre la simulacion
 
 SIMULACION:
 - Creo N habitantes con caracteristicas random (con un % contagiado)
 - Creo M espacios posiblides para visitar con caracteristicas random
 - Creo Reglas pasadas por parametro
-- Asigno 5 lugares a cada persona para visitar durante la simulacion
-- Cada dia q pasa la persona va a 2/3 de los lugares para visitar, amenos q su mobilidad se vea reducida
+- Asigno F lugares a cada persona para visitar durante la simulacion
+- Cada dia q pasa la persona va a los configurados lugares para visitar, amenos q su mobilidad se vea reducida
 - Defino probabilidades de contagio segun los riesgos de la regla
-- Defino un tiempo de contagio que tiene un contagiado (por cuantos dias es contagioso)
+- Config un tiempo de contagio que tiene un contagiado (por cuantos dias es contagioso)
+- Config tiempo de incubacion
+- Config por cuanto tiempo se encierra el riesgo alto
 
 """
 
@@ -85,24 +87,16 @@ def random_boolean():
 class Rule:
     def __init__(self, params):
         self._parse_field("contagionRisk", params)
-        self._parse_field("durationValue", params)
+        self._parse_field("durationValue", params, parse=True)
         self._parse_field("durationCmp", params)
-        self._parse_field("m2Value", params)
+        self._parse_field("m2Value", params, parse=True)
         self._parse_field("m2Cmp", params)
         self._parse_field("openSpace", params)
-        self._parse_field("vaccinated", params)
+        self._parse_field("vaccinated", params, parse=True)
 
-        # self.n95Mandatory=params['n95Mandatory']
-        # self.vaccinated=params['vaccinated']
-        # self.vaccineReceived=params['vaccineReceived']
-        # self.vaccinatedDaysAgoMin=params['vaccinatedDaysAgoMin']
-        # self.illnessRecovered=params['illnessRecovered']
-        # self.illnessRecoveredDaysAgoMax=params['illnessRecoveredDaysAgoMax']
-        # for key, value in params.items():
-        #    setattr(self, key, value)
-
-    def _parse_field(self, field, info):
-        setattr(self, field, info[field] if field in info else None)
+    def _parse_field(self, field, info, parse=False):
+        value = info[field] if field in info else None
+        setattr(self, field, int(value) if parse and value else value)
 
     def apply(self, visit_a, visit_b, shared):
         check = True
@@ -163,8 +157,6 @@ class Person:
             0, math.floor(self.visits_frequency * (TOTAL_RISK - self.risk) / TOTAL_RISK)
         )  # inverso al riesgo
 
-        #print(n_places_to_visit)
-
         places = []
         for _ in range(n_places_to_visit):
             idx = random.randint(0, n_places - 1)
@@ -198,7 +190,7 @@ class Person:
             self.restricted = True
             self.locked_down_counter = self.lockdown_restriction//2
 
-        self.expose_to_virus(p=self.probabilities[NUMBER_TO_RISK[self.risk]])
+        #self.expose_to_virus()#p=self.probabilities[NUMBER_TO_RISK[self.risk]])
 
     def expose_to_virus(self, p=DEFAULT_PROBABILITY):
         proba_infected = random.random()
@@ -297,6 +289,38 @@ class Simulator:
 
             visits_of_day[key].append(visit)
 
+
+    def spread_virus(self, place, shared, person_a, person_b):
+        p = 0.001 # small chance 
+        if place.openSpace == False:
+            print("le sumo por cerrado ", 0.1)
+            p += 0.1
+
+        print("le sumo por m2 ", 0.1 - (0.1/100) * place.m2, place.m2)
+
+        p += 0.1 - (0.1/100) * place.m2
+
+        print("le sumo por tiempo ", (0.1/HOUR) * shared, shared)
+
+        p += (0.1/HOUR) * shared
+
+        if person_a.vaccinated < 2:
+            print("le sumo por vacuna A ", 0.05 if person_a.vaccinated == 1 else 0.1, person_a.vaccinated)
+            p += 0.05 if person_a.vaccinated == 1 else 0.1
+
+        if person_b.vaccinated < 2:
+            print("le sumo por vacuna B ", 0.05 if person_b.vaccinated == 1 else 0.1, person_b.vaccinated)
+            p += 0.05 if person_b.vaccinated == 1 else 0.1
+
+        print("PROBA", p)
+
+        
+        person_a.expose_to_virus(p=p)
+        person_b.expose_to_virus(p=p)
+
+        
+
+
     def _apply_rules(self, visits, rules):
         for key, visits_by_hour in visits.items():
             if len(visits_by_hour) > 1:
@@ -328,12 +352,14 @@ class Simulator:
                         #print(f"HUBO CONTAGIO EN {visit_a.place.id} {visit_b.place.id}")
                         visit_a.person.update_risk(risk)
                         visit_b.person.update_risk(risk)
-                    else:
-                        print(visit_a)
-                        print(visit_b)
-                        print(shared)
-                        visit_a.person.expose_to_virus()
-                        visit_b.person.expose_to_virus()
+                    #else:
+                    #    print(visit_a)
+                    #    print(visit_b)
+                    #    print(shared)
+                    #visit_a.person.expose_to_virus()
+                    #visit_b.person.expose_to_virus()
+
+                    self.spread_virus(visit_a.place, shared, visit_a.person, visit_b.person)
 
 
     def _infect_population(self, population, init_infected):
@@ -451,24 +477,12 @@ Pre simulacion:
 Distribuciones de los establecimientos
 Distribuciones de las personas
 
-Post simulacion:
-Avance de contagios en el tiempo
-Avance de riesgos en el tiempo
-
-nth:
-poner a los establecimientos en un lugar
-simular los puntitos moviendose y cambiando de colores
-
 
 agregar distribucion de establecimientos
-
-agregar dias hasta presentar sintomas
-
 
 Posibles mejoras a la simulacion:
 ---------------------------------
 
-- no todos tienen 5 lugares fav
 - no todos los lugares tienen igual chance de ser visitados (hay lugares mas concurridos)
 - proba de contagio variable segun el dia de la enfermedad
 - usar https://scikit-mobility.github.io/scikit-mobility/reference/models.html#module-skmob.models.markov_diary_generator

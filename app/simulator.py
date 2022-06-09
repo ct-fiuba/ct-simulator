@@ -180,15 +180,16 @@ class Person:
         self.infected_counter = 0
 
     def update_risk(self, risk):
-        self.risk = risk
-        if risk == HIGH_RISK:  # reduce mobility
-            #print("REDUCED MOBILITY")
+        
+        if risk == HIGH_RISK and self.risk != risk:  # reduce mobility
             self.locked_down = True
             self.locked_down_counter = self.lockdown_restriction
 
-        elif risk == MID_RISK:
+        elif risk == MID_RISK and self.risk != risk:
             self.restricted = True
-            self.locked_down_counter = self.lockdown_restriction//2
+            self.locked_down_counter = self.lockdown_restriction
+
+        self.risk = risk
 
         #self.expose_to_virus()#p=self.probabilities[NUMBER_TO_RISK[self.risk]])
 
@@ -255,7 +256,7 @@ class Simulator:
             if person.infected_counter <= 0:
                 person.get_cured()
 
-        if person.locked_down or person.restricted:
+        if person.locked_down:
             person.locked_down_counter -= 1
             if person.locked_down_counter == 0:
                 person.locked_down = False
@@ -263,7 +264,11 @@ class Simulator:
                 person.risk = LOW_RISK
             return
 
-            # return
+        elif person.restricted:
+            person.locked_down_counter -= 1
+            if person.locked_down_counter == 0:
+                person.restricted = False
+                person.risk = LOW_RISK
 
         visited_places = person.places_to_visit()
 
@@ -280,8 +285,6 @@ class Simulator:
 
             visit = Visit(timestamp, duration, person, place)
 
-            # print(f"CREATE VISIT at {place.id} hour: {timestamp.hour} minute: {timestamp.minute}")
-
             key = (place.id, timestamp.hour)
 
             if key not in visits_of_day:
@@ -293,28 +296,22 @@ class Simulator:
     def spread_virus(self, place, shared, person_a, person_b):
         p = 0.001 # small chance 
         if place.openSpace == False:
-            print("le sumo por cerrado ", 0.1)
             p += 0.1
 
-        print("le sumo por m2 ", 0.1 - (0.1/100) * place.m2, place.m2)
-
         p += 0.1 - (0.1/100) * place.m2
-
-        print("le sumo por tiempo ", (0.1/HOUR) * shared, shared)
 
         p += (0.1/HOUR) * shared
 
         if person_a.vaccinated < 2:
-            print("le sumo por vacuna A ", 0.05 if person_a.vaccinated == 1 else 0.1, person_a.vaccinated)
-            p += 0.05 if person_a.vaccinated == 1 else 0.1
+            p += 0.025 if person_a.vaccinated == 1 else 0.05
+        else: # being full vaccinated decreases chances
+            p -= 0.025
 
         if person_b.vaccinated < 2:
-            print("le sumo por vacuna B ", 0.05 if person_b.vaccinated == 1 else 0.1, person_b.vaccinated)
-            p += 0.05 if person_b.vaccinated == 1 else 0.1
+            p += 0.025 if person_b.vaccinated == 1 else 0.05
+        else: # being full vaccinated decreases chances
+            p -= 0.025
 
-        print("PROBA", p)
-
-        
         person_a.expose_to_virus(p=p)
         person_b.expose_to_virus(p=p)
 
@@ -324,7 +321,6 @@ class Simulator:
     def _apply_rules(self, visits, rules):
         for key, visits_by_hour in visits.items():
             if len(visits_by_hour) > 1:
-                #print(key, len(visits_by_hour))
                 for visit_a, visit_b in itertools.combinations(visits_by_hour, 2):
                     shared = shared_time(visit_a, visit_b)
 
@@ -413,9 +409,7 @@ class Simulator:
                 stats[char].append(getattr(place, char))
 
         for char, values in stats.items():
-            print(char)
             unique_elements, counts_elements = np.unique(values, return_counts=True)
-            print(np.asarray((unique_elements, counts_elements)))
 
 
     def run(

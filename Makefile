@@ -16,13 +16,6 @@ install: setup
 	. $(ENVDIR)/bin/activate && \
 		pip3 install -r app/requirements.txt
 
-.PHONY: test
-test: setup
-	. $(ENVDIR)/bin/activate && \
-		pip3 install -r app/requirements.txt && \
-		coverage run -m pytest -v app/tests/ --disable-pytest-warnings && \
-		coverage report -m
-
 
 # -- Heroku related commands
 # You need to be logged in Heroku CLI before doing this

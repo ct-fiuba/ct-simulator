@@ -3,49 +3,6 @@ import itertools
 import math
 import numpy as np
 
-"""
-RULE:
-
-id={rule.id}
-contagionRisk={rule.contagionRisk}
-durationValue={rule.durationValue}
-durationCmp={rule.durationCmp}
-m2Value={rule.m2Value}
-m2Cmp={rule.m2Cmp}
-openSpace={rule.openSpace}
-n95Mandatory={rule.n95Mandatory}
-vaccinated={rule.vaccinated}
-vaccineReceived={rule.vaccineReceived}
-vaccinatedDaysAgoMin={rule.vaccinatedDaysAgoMin}
-illnessRecovered={rule.illnessRecovered}
-illnessRecoveredDaysAgoMax={rule.illnessRecoveredDaysAgoMax}
-index={rule.index}
-
-NIVELES DE RIESGO:
-Alto: movilidad reducida a 0, no puede visitar lugares
-Medio: movilidad reducida a la mitad de la frecuenca
-Bajo: visita la totalidad de la frecuencia configurada
-
-
-ASUMO:
-
-- En una pandemia el movimiento es reducido pero existe
-- Una persona va a por lo menos F lugares, (trabajo, supermercado, casa(nocuenta), farmacia, etc )
-- Cada persona va a visitar esos F lugares ciclando por el T tiempo en el q transcurre la simulacion
-
-SIMULACION:
-- Creo N habitantes con caracteristicas random (con un % contagiado)
-- Creo M espacios posiblides para visitar con caracteristicas random
-- Creo Reglas pasadas por parametro
-- Asigno F lugares a cada persona para visitar durante la simulacion
-- Cada dia q pasa la persona va a los configurados lugares para visitar, amenos q su mobilidad se vea reducida
-- Defino probabilidades de contagio segun los riesgos de la regla
-- Config un tiempo de contagio que tiene un contagiado (por cuantos dias es contagioso)
-- Config tiempo de incubacion
-- Config por cuanto tiempo se encierra el riesgo alto
-
-"""
-
 LOW_RISK, MID_RISK, HIGH_RISK = 0, 1, 2
 
 TOTAL_RISK = 2
@@ -155,7 +112,7 @@ class Person:
 
         n_places_to_visit = random.randint(
             0, math.floor(self.visits_frequency * (TOTAL_RISK - self.risk) / TOTAL_RISK)
-        )  # inverso al riesgo
+        )  # reverse
 
         places = []
         for _ in range(n_places_to_visit):
@@ -190,8 +147,6 @@ class Person:
             self.locked_down_counter = self.lockdown_restriction
 
         self.risk = risk
-
-        #self.expose_to_virus()#p=self.probabilities[NUMBER_TO_RISK[self.risk]])
 
     def expose_to_virus(self, p=DEFAULT_PROBABILITY):
         proba_infected = random.random()
@@ -277,7 +232,7 @@ class Simulator:
 
             timestamp = Timestamp(
                 day, random.randint(0, DAY), random.randint(0, HOUR)
-            )  # TODO: review
+            )
 
             ed = place.estimatedVisitDuration
 
@@ -332,8 +287,6 @@ class Simulator:
                     if not infected:
                         continue
 
-                    #print(f"OVERLAP ON {visit_a.place.id} at A:[{visit_a.timestamp.minute};{visit_a.timestamp.minute + visit_a.duration}] B:[{visit_b.timestamp.minute};{visit_b.timestamp.minute + visit_b.duration}] SHARED {shared}")
-
                     risk = LOW_RISK
                     should_update = False
                     for rule in rules:
@@ -345,15 +298,8 @@ class Simulator:
                             break
 
                     if should_update:
-                        #print(f"HUBO CONTAGIO EN {visit_a.place.id} {visit_b.place.id}")
                         visit_a.person.update_risk(risk)
                         visit_b.person.update_risk(risk)
-                    #else:
-                    #    print(visit_a)
-                    #    print(visit_b)
-                    #    print(shared)
-                    #visit_a.person.expose_to_virus()
-                    #visit_b.person.expose_to_virus()
 
                     self.spread_virus(visit_a.place, shared, visit_a.person, visit_b.person)
 
@@ -448,38 +394,11 @@ class Simulator:
 
         report = []
         for i in range(t):
-            #print(f"DAY {i}")
             visits_of_day = {}
             for p, person in enumerate(population):
-                # print("person day", p, i)
                 self._update_person(person, i, places, visits_of_day)
 
             self._apply_rules(visits_of_day, rules)
             self._daily_report(population, report, i)
 
-        #self._population_statistics()
-        #self._places_statistics(places)
-
         return report
-
-
-"""
-Visualizar:
-----------
-
-Pre simulacion:
-Distribuciones de los establecimientos
-Distribuciones de las personas
-
-
-agregar distribucion de establecimientos
-
-Posibles mejoras a la simulacion:
----------------------------------
-
-- no todos los lugares tienen igual chance de ser visitados (hay lugares mas concurridos)
-- proba de contagio variable segun el dia de la enfermedad
-- usar https://scikit-mobility.github.io/scikit-mobility/reference/models.html#module-skmob.models.markov_diary_generator
-
-
-"""

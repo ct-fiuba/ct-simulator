@@ -62,7 +62,7 @@ Configuracion:
 
 **NIVELES DE RIESGO:**
 - Alto: movilidad reducida a 0, no puede visitar lugares por `lockdown_restriction` dias
-- Medio: movilidad reducida a la mitad de ``frequency` lugares por `lockdown_restriction` dias
+- Medio: movilidad reducida a la mitad de `frequency` lugares por `lockdown_restriction` dias
 - Bajo: visita la totalidad de `frequency` lugares configurada
 
 
